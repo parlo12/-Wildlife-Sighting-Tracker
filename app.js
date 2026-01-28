@@ -97,13 +97,18 @@ function addSightingMarker(sighting) {
                     padding: 8px 12px;
                     border-radius: 8px;
                     font-weight: bold;
-                    font-size: 14px;
-                    white-space: nowrap;
+                    font-size: 13px;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                     text-align: center;
                     border: 3px solid white;
                     position: relative;
                     top: -40px;
+                    max-width: 200px;
+                    min-width: 100px;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    hyphens: auto;
+                    line-height: 1.3;
                 ">
                     🦌 ${species}
                 </div>
@@ -121,8 +126,8 @@ function addSightingMarker(sighting) {
                 "></div>
             </div>
         `,
-        iconSize: [150, 50],
-        iconAnchor: [75, 50]
+        iconSize: [200, 60],
+        iconAnchor: [100, 60]
     });
     
     const marker = L.marker([sighting.latitude, sighting.longitude], {
