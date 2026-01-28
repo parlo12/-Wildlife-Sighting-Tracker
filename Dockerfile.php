@@ -14,7 +14,11 @@ RUN docker-php-ext-install pdo pdo_pgsql exif
 # Set working directory
 WORKDIR /var/www/wildlife-tracker
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Expose PHP-FPM port
 EXPOSE 9000
 
-CMD ["php-fpm"]
+ENTRYPOINT ["docker-entrypoint.sh"]
