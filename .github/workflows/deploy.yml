@@ -1,0 +1,55 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Deploy to Digital Ocean
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: ${{ secrets.DROPLET_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd /var/www/wildlife-tracker
+          
+          # Pull latest code
+          git pull origin main
+          
+          # Update environment file if needed
+          if [ -f .env.production ]; then
+            cp .env.production .env
+          fi
+          
+          # Set proper permissions
+          chmod 755 /var/www/wildlife-tracker
+          mkdir -p uploads logs
+          chmod -R 755 uploads logs
+          chown -R www-data:www-data uploads logs
+          
+          # Restart containers if needed
+          docker-compose restart php-fpm || true
+          
+          # Clear any PHP caches if applicable
+          docker-compose exec -T php-fpm php -r "if (function_exists('opcache_reset')) opcache_reset();" || true
+          
+          echo "Deployment completed successfully!"
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment to koteglasye.com successful!"
+        else
+          echo "❌ Deployment failed!"
+          exit 1
+        fi

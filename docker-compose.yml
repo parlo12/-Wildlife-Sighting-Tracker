@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with PostGIS extension
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: wildlife-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wildlife_map
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wildlife_secure_password_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema_update.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - wildlife-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PHP-FPM for serving PHP files
+  php-fpm:
+    image: php:8.2-fpm
+    container_name: wildlife-php-fpm
+    restart: unless-stopped
+    working_dir: /var/www/wildlife-tracker
+    volumes:
+      - ./:/var/www/wildlife-tracker
+      - ./php-fpm.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ./php.ini:/usr/local/etc/php/php.ini
+    networks:
+      - wildlife-network
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      - PHP_FPM_PM=dynamic
+      - PHP_FPM_PM_MAX_CHILDREN=10
+      - PHP_FPM_PM_START_SERVERS=2
+      - PHP_FPM_PM_MIN_SPARE_SERVERS=1
+      - PHP_FPM_PM_MAX_SPARE_SERVERS=3
+    command: >
+      bash -c "
+      docker-php-ext-install pdo pdo_pgsql exif &&
+      php-fpm
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  wildlife-network:
+    driver: bridge

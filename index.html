@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wildlife Sighting Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            background: white;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #f0f0f0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+            border-color: #0056b3;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .form-group input[type="file"]:hover {
+            border-color: #007bff;
+        }
+
+        .preview-container {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .info-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .confirmation-modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+        }
+
+        .confirmation-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .confirmation-content h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .confirmation-content p {
+            color: #666;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .confirmation-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            border-color: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            border-color: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            border-color: #c82333;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .success-message {
+            color: #28a745;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .leaflet-popup-content {
+            margin: 10px;
+        }
+
+        .popup-image {
+            width: 200px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .popup-info {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .popup-time {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .popup-expires {
+            color: #dc3545;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="controls">
+        <button id="uploadBtn" class="btn btn-primary">📷 Upload Sighting</button>
+        <button id="refreshBtn" class="btn">🔄 Refresh Map</button>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div class="modal-header">Upload Wildlife Sighting</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="imageFile">Select Photo (with GPS data)</label>
+                    <input type="file" id="imageFile" accept="image/*" capture="environment">
+                    <p class="info-text">📍 Photo must contain GPS location data</p>
+                </div>
+                <div id="previewContainer" class="preview-container"></div>
+                <div id="uploadError" class="error-message"></div>
+                <div id="uploadSuccess" class="success-message"></div>
+                <div id="uploadLoading" class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px;">Uploading...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelUpload" class="btn">Cancel</button>
+                <button id="submitUpload" class="btn btn-primary" disabled>Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="confirmation-modal">
+        <div class="confirmation-content">
+            <h2>⏰ Sighting Expiring Soon</h2>
+            <p>Is this sighting still in the area?</p>
+            <div id="confirmationDetails" style="margin-bottom: 20px; color: #888; font-size: 12px;"></div>
+            <div class="confirmation-buttons">
+                <button id="confirmYes" class="btn btn-success">Yes, Keep It</button>
+                <button id="confirmNo" class="btn btn-danger">No, Remove It</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
