@@ -84,7 +84,50 @@ async function loadSightings() {
 
 // Add a marker for a sighting
 function addSightingMarker(sighting) {
-    const marker = L.marker([sighting.latitude, sighting.longitude]).addTo(map);
+    const species = sighting.species || 'Unknown';
+    
+    // Create custom icon with species label
+    const customIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `
+            <div style="position: relative;">
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    font-size: 14px;
+                    white-space: nowrap;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    text-align: center;
+                    border: 3px solid white;
+                    position: relative;
+                    top: -40px;
+                ">
+                    🦌 ${species}
+                </div>
+                <div style="
+                    width: 0;
+                    height: 0;
+                    border-left: 10px solid transparent;
+                    border-right: 10px solid transparent;
+                    border-top: 15px solid #764ba2;
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    top: -25px;
+                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+                "></div>
+            </div>
+        `,
+        iconSize: [150, 50],
+        iconAnchor: [75, 50]
+    });
+    
+    const marker = L.marker([sighting.latitude, sighting.longitude], {
+        icon: customIcon
+    }).addTo(map);
     
     // Calculate time remaining
     let expiresText = '';
@@ -101,7 +144,6 @@ function addSightingMarker(sighting) {
     }
     
     const createdAt = new Date(sighting.created_at);
-    const species = sighting.species || 'Unknown';
     
     const popupContent = `
         <div style="text-align: center;">
