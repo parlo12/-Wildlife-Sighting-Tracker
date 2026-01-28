@@ -29,6 +29,8 @@ services:
     container_name: wildlife-php-fpm
     restart: unless-stopped
     working_dir: /var/www/wildlife-tracker
+    ports:
+      - "9000:9000"
     volumes:
       - ./:/var/www/wildlife-tracker
       - ./php-fpm.conf:/usr/local/etc/php-fpm.d/www.conf
