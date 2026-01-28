@@ -25,7 +25,9 @@ services:
 
   # PHP-FPM for serving PHP files
   php-fpm:
-    image: php:8.2-fpm
+    build:
+      context: .
+      dockerfile: Dockerfile.php
     container_name: wildlife-php-fpm
     restart: unless-stopped
     working_dir: /var/www/wildlife-tracker
@@ -46,11 +48,6 @@ services:
       - PHP_FPM_PM_START_SERVERS=2
       - PHP_FPM_PM_MIN_SPARE_SERVERS=1
       - PHP_FPM_PM_MAX_SPARE_SERVERS=3
-    command: >
-      bash -c "
-      docker-php-ext-install pdo pdo_pgsql exif &&
-      php-fpm
-      "
 
 volumes:
   postgres_data:
