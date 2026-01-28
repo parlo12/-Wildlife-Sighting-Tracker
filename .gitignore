@@ -1,2 +1,9 @@
+# Environment files with sensitive data
 .env
-uploads/
+.env.local
+.env.production
+.env.*.local
+
+# Uploads (keep directory but not files)
+uploads/*
+!uploads/.gitkeep
