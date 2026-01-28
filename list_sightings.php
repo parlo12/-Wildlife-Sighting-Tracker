@@ -95,12 +95,12 @@ try {
     ]);
 
     $stmt = $pdo->prepare(
-        'SELECT id, image_path, taken_at, expires_at, last_confirmed_at, ' .
-        'ST_Y(coord::geometry) AS lat, ' .
-        'ST_X(coord::geometry) AS lon ' .
+        'SELECT id, species, photo_url, created_at, expires_at, last_confirmed_at, ' .
+        'ST_Y(location::geometry) AS latitude, ' .
+        'ST_X(location::geometry) AS longitude ' .
         'FROM sightings ' .
-        'WHERE expires_at IS NULL OR expires_at > NOW() ' .
-        'ORDER BY taken_at DESC ' .
+        'WHERE (expires_at IS NULL OR expires_at > NOW()) ' .
+        'ORDER BY created_at DESC ' .
         'LIMIT :limit'
     );
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -108,7 +108,9 @@ try {
     $rows = $stmt->fetchAll();
 
     $data = array_map(function (array $row) use ($BASE_URL) {
-        $row['image_url'] = absoluteImageUrl($BASE_URL, $row['image_path']);
+        if (!empty($row['photo_url'])) {
+            $row['image_url'] = absoluteImageUrl($BASE_URL, $row['photo_url']);
+        }
         return $row;
     }, $rows);
 
