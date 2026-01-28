@@ -338,31 +338,73 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(405, ['error' => 'Method not allowed']);
 }
 
-if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-    $code = $_FILES['image']['error'] ?? null;
-    $message = $code !== null ? uploadErrorMessage((int) $code) : 'Image upload failed';
-    logEvent('warn', 'upload_failed', ['code' => $code, 'message' => $message]);
-    respond(400, ['error' => 'Image upload failed', 'detail' => $message, 'code' => $code]);
+// Check if we have either an image or lat/lon coordinates
+$hasImage = isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK;
+$hasCoordinates = isset($_POST['lat'], $_POST['lon']);
+
+if (!$hasImage && !$hasCoordinates) {
+    logEvent('warn', 'no_image_or_coordinates');
+    respond(400, ['error' => 'Either an image with GPS data or current location coordinates are required']);
 }
 
-if (!is_dir($UPLOAD_DIR) && !mkdir($UPLOAD_DIR, 0755, true) && !is_dir($UPLOAD_DIR)) {
-    logEvent('error', 'upload_dir_failure', ['dir' => $UPLOAD_DIR]);
-    respond(500, ['error' => 'Failed to create upload directory']);
+// Check if we have either an image or lat/lon coordinates
+$hasImage = isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK;
+$hasCoordinates = isset($_POST['lat'], $_POST['lon']);
+
+if (!$hasImage && !$hasCoordinates) {
+    logEvent('warn', 'no_image_or_coordinates');
+    respond(400, ['error' => 'Either an image with GPS data or current location coordinates are required']);
 }
 
-$originalName = $_FILES['image']['name'] ?? 'upload';
-$extension = pathinfo($originalName, PATHINFO_EXTENSION);
-$targetName = uniqid('sighting_', true) . ($extension ? ".{$extension}" : '');
-$targetPath = $UPLOAD_DIR . DIRECTORY_SEPARATOR . $targetName;
-$storedPath = basename($UPLOAD_DIR) . '/' . $targetName;
+$storedPath = null;
+$targetPath = null;
 
-if (!move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
-    logEvent('error', 'move_uploaded_file_failed', ['target' => $targetPath]);
-    respond(500, ['error' => 'Failed to save uploaded image']);
+// Handle image upload if provided
+if ($hasImage) {
+    if (!is_dir($UPLOAD_DIR) && !mkdir($UPLOAD_DIR, 0755, true) && !is_dir($UPLOAD_DIR)) {
+        logEvent('error', 'upload_dir_failure', ['dir' => $UPLOAD_DIR]);
+        respond(500, ['error' => 'Failed to create upload directory']);
+    }
+
+    $originalName = $_FILES['image']['name'] ?? 'upload';
+    $extension = pathinfo($originalName, PATHINFO_EXTENSION);
+    $targetName = uniqid('sighting_', true) . ($extension ? ".{$extension}" : '');
+    $targetPath = $UPLOAD_DIR . DIRECTORY_SEPARATOR . $targetName;
+    $storedPath = basename($UPLOAD_DIR) . '/' . $targetName;
+
+    if (!move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
+        logEvent('error', 'move_uploaded_file_failed', ['target' => $targetPath]);
+        respond(500, ['error' => 'Failed to save uploaded image']);
+    }
 }
 
-$gps = extractGpsFromExif($targetPath);
+$storedPath = null;
+$targetPath = null;
+
+// Handle image upload if provided
+if ($hasImage) {
+    if (!is_dir($UPLOAD_DIR) && !mkdir($UPLOAD_DIR, 0755, true) && !is_dir($UPLOAD_DIR)) {
+        logEvent('error', 'upload_dir_failure', ['dir' => $UPLOAD_DIR]);
+        respond(500, ['error' => 'Failed to create upload directory']);
+    }
+
+    $originalName = $_FILES['image']['name'] ?? 'upload';
+    $extension = pathinfo($originalName, PATHINFO_EXTENSION);
+    $targetName = uniqid('sighting_', true) . ($extension ? ".{$extension}" : '');
+    $targetPath = $UPLOAD_DIR . DIRECTORY_SEPARATOR . $targetName;
+    $storedPath = basename($UPLOAD_DIR) . '/' . $targetName;
+
+    if (!move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
+        logEvent('error', 'move_uploaded_file_failed', ['target' => $targetPath]);
+        respond(500, ['error' => 'Failed to save uploaded image']);
+    }
+}
+
+// Extract GPS coordinates
+$gps = $targetPath ? extractGpsFromExif($targetPath) : null;
 [$lat, $lon] = [null, null];
+$source = 'unknown';
+
 if ($gps) {
     [$lat, $lon] = $gps;
     $source = 'exif';
@@ -371,10 +413,12 @@ if ($gps) {
     if ($clientCoords) {
         [$lat, $lon] = $clientCoords;
         $source = 'client';
-        logEvent('warn', 'missing_exif_client_fallback', ['file' => $targetName]);
+        if ($targetPath) {
+            logEvent('warn', 'missing_exif_client_fallback', ['file' => basename($targetPath)]);
+        }
     } else {
-        logEvent('warn', 'missing_exif', ['file' => $targetName]);
-        respond(422, ['error' => 'No GPS metadata found in image']);
+        logEvent('warn', 'missing_location_data', ['has_image' => $hasImage, 'has_coords' => $hasCoordinates]);
+        respond(422, ['error' => 'No location data found. Please provide coordinates or upload image with GPS metadata']);
     }
 }
 
@@ -431,6 +475,8 @@ try {
         'sighting_id' => $sightingId,
         'lat' => $lat,
         'lon' => $lon,
+        'species' => $species,
+        'has_image' => $storedPath !== null,
         'coord_source' => $source ?? 'unknown',
         'tokens' => count($tokens),
         'fcm_used' => $fcmResult['used'] ?? null,
@@ -438,16 +484,22 @@ try {
         'fcm_failure' => $fcmResult['failure'] ?? null,
     ]);
 
-    respond(200, [
+    $response = [
         'sighting_id' => $sightingId,
-        'image_path' => $storedPath,
-        'image_url' => absoluteImageUrl($BASE_URL, $storedPath),
         'lat' => $lat,
         'lon' => $lon,
+        'species' => $species,
         'coord_source' => $source ?? 'unknown',
         'fcm_tokens' => $tokens,
         'fcm' => $fcmResult,
-    ]);
+    ];
+    
+    if ($storedPath) {
+        $response['image_path'] = $storedPath;
+        $response['image_url'] = absoluteImageUrl($BASE_URL, $storedPath);
+    }
+    
+    respond(200, $response);
 } catch (Throwable $e) {
     logEvent('error', 'exception', ['error' => $e->getMessage()]);
     respond(500, ['error' => 'Server error', 'detail' => $e->getMessage()]);

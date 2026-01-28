@@ -8,6 +8,7 @@ let map;
 let markers = {};
 let expirationCheckInterval;
 let currentConfirmationSighting = null;
+let currentLocation = null;
 
 // Initialize map
 function initMap() {
@@ -73,7 +74,7 @@ async function loadSightings() {
 
             // Center map on first sighting if we haven't moved yet
             if (data.data.length > 0 && !map._moved) {
-                map.setView([data.data[0].lat, data.data[0].lon], 13);
+                map.setView([data.data[0].latitude, data.data[0].longitude], 13);
             }
         }
     } catch (error) {
@@ -83,7 +84,7 @@ async function loadSightings() {
 
 // Add a marker for a sighting
 function addSightingMarker(sighting) {
-    const marker = L.marker([sighting.lat, sighting.lon]).addTo(map);
+    const marker = L.marker([sighting.latitude, sighting.longitude]).addTo(map);
     
     // Calculate time remaining
     let expiresText = '';
@@ -99,13 +100,27 @@ function addSightingMarker(sighting) {
         }
     }
     
-    const takenAt = new Date(sighting.taken_at);
+    const createdAt = new Date(sighting.created_at);
+    const species = sighting.species || 'Unknown';
+    
+    // Show image if available, otherwise show species icon
+    let imageHtml = '';
+    if (sighting.image_url || sighting.photo_url) {
+        const imageUrl = sighting.image_url || sighting.photo_url;
+        imageHtml = `<img src="${imageUrl}" class="popup-image" alt="${species}" onerror="this.style.display='none'">`;
+    } else {
+        imageHtml = `<div style="width: 200px; height: 150px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+            <span style="font-size: 48px;">🦌</span>
+        </div>`;
+    }
+    
     const popupContent = `
         <div>
-            <img src="${sighting.image_url}" class="popup-image" alt="Sighting" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23ddd%22 width=%22200%22 height=%22150%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23999%22 text-anchor=%22middle%22>No Image</text></svg>'">
+            ${imageHtml}
             <div class="popup-info">
-                <div class="popup-time">${takenAt.toLocaleString()}</div>
-                <div>📍 ${sighting.lat.toFixed(6)}, ${sighting.lon.toFixed(6)}</div>
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px; color: #333;">🦌 ${species}</div>
+                <div class="popup-time">${createdAt.toLocaleString()}</div>
+                <div>📍 ${sighting.latitude.toFixed(6)}, ${sighting.longitude.toFixed(6)}</div>
                 ${expiresText}
             </div>
         </div>
@@ -196,9 +211,21 @@ async function confirmSighting(sightingId) {
 }
 
 // Upload sighting
-async function uploadSighting(file) {
+async function uploadSighting(file, species, location) {
     const formData = new FormData();
-    formData.append('image', file);
+    
+    if (file) {
+        formData.append('image', file);
+    }
+    
+    if (species) {
+        formData.append('species', species);
+    }
+    
+    if (location) {
+        formData.append('lat', location.lat);
+        formData.append('lon', location.lon);
+    }
 
     const loadingEl = document.getElementById('uploadLoading');
     const errorEl = document.getElementById('uploadError');
@@ -246,10 +273,13 @@ function closeUploadModal() {
     const modal = document.getElementById('uploadModal');
     modal.style.display = 'none';
     document.getElementById('imageFile').value = '';
+    document.getElementById('speciesInput').value = '';
     document.getElementById('previewContainer').innerHTML = '';
     document.getElementById('uploadError').textContent = '';
     document.getElementById('uploadSuccess').textContent = '';
+    document.getElementById('locationInfo').style.display = 'none';
     document.getElementById('submitUpload').disabled = true;
+    currentLocation = null;
 }
 
 function closeConfirmationModal() {
@@ -278,11 +308,60 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.close').addEventListener('click', closeUploadModal);
     document.getElementById('cancelUpload').addEventListener('click', closeUploadModal);
 
+    // Species input validation
+    function validateForm() {
+        const species = document.getElementById('speciesInput').value.trim();
+        const file = document.getElementById('imageFile').files[0];
+        const submitBtn = document.getElementById('submitUpload');
+        
+        // Enable submit if we have species and either a file or current location
+        submitBtn.disabled = !(species && (file || currentLocation));
+    }
+    
+    document.getElementById('speciesInput').addEventListener('input', validateForm);
+
+    // Use current location button
+    document.getElementById('useLocationBtn').addEventListener('click', () => {
+        const locationInfo = document.getElementById('locationInfo');
+        const errorEl = document.getElementById('uploadError');
+        
+        if (navigator.geolocation) {
+            locationInfo.textContent = '📍 Getting location...';
+            locationInfo.style.display = 'block';
+            locationInfo.style.color = '#666';
+            errorEl.textContent = '';
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    currentLocation = {
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude
+                    };
+                    locationInfo.textContent = `✓ Location acquired: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lon.toFixed(6)}`;
+                    locationInfo.style.color = '#28a745';
+                    validateForm();
+                },
+                (error) => {
+                    locationInfo.style.display = 'none';
+                    errorEl.textContent = 'Unable to get location. Please enable location services or upload a photo with GPS data.';
+                    currentLocation = null;
+                    validateForm();
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            errorEl.textContent = 'Geolocation is not supported by your browser.';
+        }
+    });
+
     // File selection
     document.getElementById('imageFile').addEventListener('change', (e) => {
         const file = e.target.files[0];
         const previewContainer = document.getElementById('previewContainer');
-        const submitBtn = document.getElementById('submitUpload');
 
         if (file) {
             // Show preview
@@ -291,19 +370,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 previewContainer.innerHTML = `<img src="${event.target.result}" class="preview-image" alt="Preview">`;
             };
             reader.readAsDataURL(file);
-            submitBtn.disabled = false;
         } else {
             previewContainer.innerHTML = '';
-            submitBtn.disabled = true;
         }
+        validateForm();
     });
 
     // Submit upload
     document.getElementById('submitUpload').addEventListener('click', () => {
         const fileInput = document.getElementById('imageFile');
+        const speciesInput = document.getElementById('speciesInput');
         const file = fileInput.files[0];
-        if (file) {
-            uploadSighting(file);
+        const species = speciesInput.value.trim();
+        
+        if (species && (file || currentLocation)) {
+            uploadSighting(file, species, currentLocation);
         }
     });
 

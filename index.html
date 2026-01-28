@@ -315,9 +315,17 @@
             <div class="modal-header">Upload Wildlife Sighting</div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="imageFile">Select Photo (with GPS data)</label>
+                    <label for="speciesInput">Species Name *</label>
+                    <input type="text" id="speciesInput" placeholder="e.g., Deer, Bear, Eagle" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div class="form-group">
+                    <label for="imageFile">Select Photo (optional)</label>
                     <input type="file" id="imageFile" accept="image/*" capture="environment">
-                    <p class="info-text">📍 Photo must contain GPS location data</p>
+                    <p class="info-text">📍 Photo with GPS data preferred, or use current location</p>
+                </div>
+                <div class="form-group">
+                    <button id="useLocationBtn" class="btn" style="width: 100%;">📍 Use Current Location</button>
+                    <p id="locationInfo" class="info-text" style="display: none; color: #28a745; font-weight: 600;"></p>
                 </div>
                 <div id="previewContainer" class="preview-container"></div>
                 <div id="uploadError" class="error-message"></div>
