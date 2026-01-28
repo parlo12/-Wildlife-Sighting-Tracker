@@ -338,13 +338,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(405, ['error' => 'Method not allowed']);
 }
 
-// Check if we have either an image or lat/lon coordinates
-$hasImage = isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK;
-$hasCoordinates = isset($_POST['lat'], $_POST['lon']);
+// Validate required fields
+if (!isset($_POST['species']) || empty(trim($_POST['species']))) {
+    logEvent('warn', 'missing_species');
+    respond(400, ['error' => 'Species name is required']);
+}
 
-if (!$hasImage && !$hasCoordinates) {
-    logEvent('warn', 'no_image_or_coordinates');
-    respond(400, ['error' => 'Either an image with GPS data or current location coordinates are required']);
+if (!isset($_POST['lat'], $_POST['lon'])) {
+    logEvent('warn', 'missing_coordinates');
+    respond(400, ['error' => 'Location coordinates are required']);
 }
 
 // Check if we have either an image or lat/lon coordinates
@@ -378,49 +380,15 @@ if ($hasImage) {
     }
 }
 
-$storedPath = null;
-$targetPath = null;
-
-// Handle image upload if provided
-if ($hasImage) {
-    if (!is_dir($UPLOAD_DIR) && !mkdir($UPLOAD_DIR, 0755, true) && !is_dir($UPLOAD_DIR)) {
-        logEvent('error', 'upload_dir_failure', ['dir' => $UPLOAD_DIR]);
-        respond(500, ['error' => 'Failed to create upload directory']);
-    }
-
-    $originalName = $_FILES['image']['name'] ?? 'upload';
-    $extension = pathinfo($originalName, PATHINFO_EXTENSION);
-    $targetName = uniqid('sighting_', true) . ($extension ? ".{$extension}" : '');
-    $targetPath = $UPLOAD_DIR . DIRECTORY_SEPARATOR . $targetName;
-    $storedPath = basename($UPLOAD_DIR) . '/' . $targetName;
-
-    if (!move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
-        logEvent('error', 'move_uploaded_file_failed', ['target' => $targetPath]);
-        respond(500, ['error' => 'Failed to save uploaded image']);
-    }
+// Get and validate coordinates
+$clientCoords = sanitizeClientCoords();
+if (!$clientCoords) {
+    logEvent('warn', 'invalid_coordinates');
+    respond(422, ['error' => 'Invalid location coordinates']);
 }
 
-// Extract GPS coordinates
-$gps = $targetPath ? extractGpsFromExif($targetPath) : null;
-[$lat, $lon] = [null, null];
-$source = 'unknown';
-
-if ($gps) {
-    [$lat, $lon] = $gps;
-    $source = 'exif';
-} else {
-    $clientCoords = sanitizeClientCoords();
-    if ($clientCoords) {
-        [$lat, $lon] = $clientCoords;
-        $source = 'client';
-        if ($targetPath) {
-            logEvent('warn', 'missing_exif_client_fallback', ['file' => basename($targetPath)]);
-        }
-    } else {
-        logEvent('warn', 'missing_location_data', ['has_image' => $hasImage, 'has_coords' => $hasCoordinates]);
-        respond(422, ['error' => 'No location data found. Please provide coordinates or upload image with GPS metadata']);
-    }
-}
+[$lat, $lon] = $clientCoords;
+$species = trim($_POST['species']);
 
 try {
     $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s', $DB_HOST, $DB_PORT, $DB_NAME);
@@ -431,18 +399,14 @@ try {
 
     // Insert the sighting; location stored as geometry with SRID 4326.
     // Set expiration to 4 hours from now
-    // Species defaults to 'Unknown' if not provided
-    $species = $_POST['species'] ?? 'Unknown';
-    
     $insert = $pdo->prepare(
-        'INSERT INTO sightings (species, photo_url, location, latitude, longitude, expires_at, last_confirmed_at) ' .
-        'VALUES (:species, :path, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :lat, :lon, ' .
+        'INSERT INTO sightings (species, location, latitude, longitude, expires_at, last_confirmed_at) ' .
+        'VALUES (:species, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :lat, :lon, ' .
         "NOW() + INTERVAL '4 hours', NOW()) " .
         'RETURNING id'
     );
     $insert->execute([
         ':species' => $species,
-        ':path' => $storedPath,
         ':lat' => $lat,
         ':lon' => $lon,
     ]);
@@ -476,30 +440,20 @@ try {
         'lat' => $lat,
         'lon' => $lon,
         'species' => $species,
-        'has_image' => $storedPath !== null,
-        'coord_source' => $source ?? 'unknown',
         'tokens' => count($tokens),
         'fcm_used' => $fcmResult['used'] ?? null,
         'fcm_success' => $fcmResult['success'] ?? null,
         'fcm_failure' => $fcmResult['failure'] ?? null,
     ]);
 
-    $response = [
+    respond(200, [
         'sighting_id' => $sightingId,
         'lat' => $lat,
         'lon' => $lon,
         'species' => $species,
-        'coord_source' => $source ?? 'unknown',
         'fcm_tokens' => $tokens,
         'fcm' => $fcmResult,
-    ];
-    
-    if ($storedPath) {
-        $response['image_path'] = $storedPath;
-        $response['image_url'] = absoluteImageUrl($BASE_URL, $storedPath);
-    }
-    
-    respond(200, $response);
+    ]);
 } catch (Throwable $e) {
     logEvent('error', 'exception', ['error' => $e->getMessage()]);
     respond(500, ['error' => 'Server error', 'detail' => $e->getMessage()]);

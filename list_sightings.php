@@ -95,7 +95,7 @@ try {
     ]);
 
     $stmt = $pdo->prepare(
-        'SELECT id, species, photo_url, created_at, expires_at, last_confirmed_at, ' .
+        'SELECT id, species, created_at, expires_at, last_confirmed_at, ' .
         'ST_Y(location::geometry) AS latitude, ' .
         'ST_X(location::geometry) AS longitude ' .
         'FROM sightings ' .
@@ -105,14 +105,7 @@ try {
     );
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
-    $rows = $stmt->fetchAll();
-
-    $data = array_map(function (array $row) use ($BASE_URL) {
-        if (!empty($row['photo_url'])) {
-            $row['image_url'] = absoluteImageUrl($BASE_URL, $row['photo_url']);
-        }
-        return $row;
-    }, $rows);
+    $data = $stmt->fetchAll();
 
     logEvent('info', 'list_sightings', ['count' => count($data), 'limit' => $limit]);
     respond(200, ['data' => $data]);

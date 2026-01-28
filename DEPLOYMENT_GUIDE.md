@@ -49,7 +49,9 @@ git push -u origin main
 
 ---
 
-## Step 2: Set Up Digital Ocean Droplet
+## Step 2: Set Up Digital Ocean Droplet (DO THIS FIRST!)
+
+**⚠️ IMPORTANT: Do this step BEFORE configuring GoDaddy - you need the droplet IP address!**
 
 ### 2.1 Create Droplet
 
@@ -82,25 +84,32 @@ cat ~/.ssh/id_ed25519.pub
 
 ### 2.2 Note Your Droplet IP
 
-Once created, copy your droplet's **IP address** (e.g., `164.92.123.456`)
+Once created, **COPY AND SAVE** your droplet's **IP address** (e.g., `164.92.123.456`)  
+**You'll need this in the next step!**
 
 ---
 
-## Step 3: Configure Domain DNS (GoDaddy)
+## Step 3: Configure Domain DNS (GoDaddy) - DO THIS SECOND
+
+**⚠️ Prerequisites: You MUST have your Digital Ocean droplet IP from Step 2!**
 
 ### 3.1 Add DNS Records
 
 1. Log in to https://dcc.godaddy.com
 2. Go to "My Products" → Find `koteglasye.com` → Click "DNS"
-3. **Add/Edit A Records:**
+3. **Delete any existing A records or CNAME records for @ and www** (GoDaddy parking pages)
+4. **Add/Edit A Records:**
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
-| A | @ | YOUR_DROPLET_IP | 600 |
-| A | www | YOUR_DROPLET_IP | 600 |
+| A | @ | YOUR_DROPLET_IP (from Step 2.2) | 600 |
+| A | www | YOUR_DROPLET_IP (from Step 2.2) | 600 |
 
-4. Click "Save"
-5. **Wait 5-30 minutes** for DNS propagation
+**Example:** If your droplet IP is `164.92.123.456`, both records use that IP.
+
+5. Click "Save" or "Save All Records"
+6. **Important:** Disable any domain forwarding/parking if enabled
+7. **Wait 10-30 minutes** for DNS propagation (continue to Step 4 while waiting)
 
 ### 3.2 Verify DNS (after waiting)
 
@@ -112,7 +121,9 @@ nslookup www.koteglasye.com
 
 ---
 
-## Step 4: Initial Server Setup
+## Step 4: Initial Server Setup (Start While DNS Propagates)
+
+**💡 You can start this while waiting for DNS from Step 3!**
 
 ### 4.1 SSH into Your Droplet
 

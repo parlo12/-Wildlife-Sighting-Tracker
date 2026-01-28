@@ -33,7 +33,9 @@
    git push -u origin main
    ```
 
-### Phase 2: Digital Ocean Setup (20 minutes)
+### Phase 2: Digital Ocean Droplet Setup (20 minutes)
+
+**⚠️ DO THIS FIRST - You need the IP for GoDaddy DNS!**
 
 4. **Create Droplet:**
    - Log in: https://cloud.digitalocean.com
@@ -43,17 +45,24 @@
    - Add your SSH key
    - Hostname: `wildlife-tracker`
 
-5. **Note your droplet IP:** `_________________`
+5. **📝 SAVE YOUR DROPLET IP:** `_________________`  
+   **⚠️ YOU NEED THIS FOR THE NEXT STEP!**
 
 ### Phase 3: Domain Configuration (5-30 minutes)
+
+**Prerequisites:** ✅ You MUST have your droplet IP from Phase 2 Step 5!
 
 6. **Configure DNS in GoDaddy:**
    - Log in: https://dcc.godaddy.com
    - My Products → koteglasye.com → DNS
-   - Add A records:
-     * Type: A, Name: @, Value: YOUR_DROPLET_IP
-     * Type: A, Name: www, Value: YOUR_DROPLET_IP
-   - **Wait 10-30 minutes for propagation**
+   - **Delete existing A/CNAME records** for @ and www (GoDaddy parking)
+   - Add NEW A records:
+     * Type: A, Name: @, Value: **YOUR_DROPLET_IP** (from Step 5)
+     * Type: A, Name: www, Value: **YOUR_DROPLET_IP** (same IP)
+     * TTL: 600 seconds
+   - Click "Save All Records"
+   - Disable domain forwarding if enabled
+   - **⏰ Wait 10-30 minutes for propagation (continue to Phase 4 while waiting)**
 
 7. **Verify DNS:**
    ```bash
@@ -62,6 +71,8 @@
    ```
 
 ### Phase 4: Server Setup (30 minutes)
+
+**💡 Start this while DNS propagates from Phase 3!**
 
 8. **SSH into droplet:**
    ```bash
