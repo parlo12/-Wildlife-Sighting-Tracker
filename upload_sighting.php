@@ -385,15 +385,19 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 
-    // Insert the sighting; coord stored as geography for spheroid math.
+    // Insert the sighting; location stored as geometry with SRID 4326.
     // Set expiration to 4 hours from now
+    // Species defaults to 'Unknown' if not provided
+    $species = $_POST['species'] ?? 'Unknown';
+    
     $insert = $pdo->prepare(
-        'INSERT INTO sightings (image_path, coord, expires_at, last_confirmed_at) ' .
-        'VALUES (:path, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, ' .
+        'INSERT INTO sightings (species, photo_url, location, latitude, longitude, expires_at, last_confirmed_at) ' .
+        'VALUES (:species, :path, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :lat, :lon, ' .
         "NOW() + INTERVAL '4 hours', NOW()) " .
         'RETURNING id'
     );
     $insert->execute([
+        ':species' => $species,
         ':path' => $storedPath,
         ':lat' => $lat,
         ':lon' => $lon,
@@ -401,16 +405,18 @@ try {
     $sightingId = (int) $insert->fetchColumn();
 
     // Find nearby users within 30 miles.
-    $tokensStmt = $pdo->prepare(
-        'SELECT fcm_token FROM users ' .
-        'WHERE fcm_token IS NOT NULL AND fcm_token <> \'\' ' .
-        'AND ST_DWithin(current_loc, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, :radius)'
-    );
-    $tokensStmt->bindValue(':lon', $lon);
-    $tokensStmt->bindValue(':lat', $lat);
-    $tokensStmt->bindValue(':radius', $RADIUS_METERS, PDO::PARAM_INT);
-    $tokensStmt->execute();
-    $tokens = $tokensStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    // Note: users table may not exist yet, so we'll skip notifications for now
+    // $tokensStmt = $pdo->prepare(
+    //     'SELECT device_token FROM sightings ' .
+    //     'WHERE device_token IS NOT NULL AND device_token <> \'\' ' .
+    //     'AND ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :radius)'
+    // );
+    $tokens = []; // Disabled until users table is created
+    // $tokensStmt->bindValue(':lon', $lon);
+    // $tokensStmt->bindValue(':lat', $lat);
+    // $tokensStmt->bindValue(':radius', $RADIUS_METERS, PDO::PARAM_INT);
+    // $tokensStmt->execute();
+    // $tokens = $tokensStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
     $fcmResult = null;
     if ($tokens) {

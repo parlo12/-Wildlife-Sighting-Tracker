@@ -88,10 +88,10 @@ try {
     // Find sightings that are about to expire (within next 5 minutes)
     // or have already expired
     $stmt = $pdo->prepare(
-        "SELECT id, image_path, 
-                ST_Y(coord::geometry) AS lat, 
-                ST_X(coord::geometry) AS lon,
-                taken_at,
+        "SELECT id, species, photo_url, 
+                ST_Y(location::geometry) AS latitude, 
+                ST_X(location::geometry) AS longitude,
+                created_at,
                 expires_at,
                 last_confirmed_at
          FROM sightings
