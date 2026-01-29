@@ -9,9 +9,31 @@ let markers = {};
 let expirationCheckInterval;
 let currentConfirmationSighting = null;
 let currentLocation = null;
+let userId = null;
+
+// Generate or retrieve user ID
+function getUserId() {
+    if (!userId) {
+        // Check if user ID exists in localStorage
+        userId = localStorage.getItem('wildlife_user_id');
+        
+        if (!userId) {
+            // Generate new unique user ID
+            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('wildlife_user_id', userId);
+            console.log('Generated new user ID:', userId);
+        } else {
+            console.log('Using existing user ID:', userId);
+        }
+    }
+    return userId;
+}
 
 // Initialize map
 function initMap() {
+    // Initialize user ID on map load
+    getUserId();
+    
     // Center on a default location (will be updated based on sightings or user location)
     map = L.map('map').setView([37.7749, -122.4194], 10);
 
@@ -241,6 +263,7 @@ async function uploadSighting(species, location) {
     formData.append('species', species);
     formData.append('lat', location.lat);
     formData.append('lon', location.lon);
+    formData.append('user_id', getUserId()); // Add user identification
 
     const loadingEl = document.getElementById('uploadLoading');
     const errorEl = document.getElementById('uploadError');

@@ -95,7 +95,7 @@ try {
     ]);
 
     $stmt = $pdo->prepare(
-        'SELECT id, species, created_at, expires_at, last_confirmed_at, ' .
+        'SELECT id, species, user_id, created_at, expires_at, last_confirmed_at, ' .
         'ST_Y(location::geometry) AS latitude, ' .
         'ST_X(location::geometry) AS longitude ' .
         'FROM sightings ' .

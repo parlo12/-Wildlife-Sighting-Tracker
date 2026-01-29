@@ -389,6 +389,7 @@ if (!$clientCoords) {
 
 [$lat, $lon] = $clientCoords;
 $species = trim($_POST['species']);
+$userId = isset($_POST['user_id']) ? trim($_POST['user_id']) : null;
 
 try {
     $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s', $DB_HOST, $DB_PORT, $DB_NAME);
@@ -400,8 +401,8 @@ try {
     // Insert the sighting; location stored as geometry with SRID 4326.
     // Set expiration to 4 hours from now
     $insert = $pdo->prepare(
-        'INSERT INTO sightings (species, location, latitude, longitude, expires_at, last_confirmed_at) ' .
-        'VALUES (:species, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :lat, :lon, ' .
+        'INSERT INTO sightings (species, location, latitude, longitude, user_id, expires_at, last_confirmed_at) ' .
+        'VALUES (:species, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :lat, :lon, :user_id, ' .
         "NOW() + INTERVAL '4 hours', NOW()) " .
         'RETURNING id'
     );
@@ -409,6 +410,7 @@ try {
         ':species' => $species,
         ':lat' => $lat,
         ':lon' => $lon,
+        ':user_id' => $userId,
     ]);
     $sightingId = (int) $insert->fetchColumn();
 
