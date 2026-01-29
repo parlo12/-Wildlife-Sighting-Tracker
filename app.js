@@ -89,14 +89,22 @@ async function loadSightings() {
             Object.values(markers).forEach(marker => map.removeLayer(marker));
             markers = {};
 
-            // Add new markers
+            // Add new markers and collect bounds
+            const bounds = [];
             data.data.forEach(sighting => {
                 addSightingMarker(sighting);
+                bounds.push([parseFloat(sighting.latitude), parseFloat(sighting.longitude)]);
             });
 
-            // Center map on first sighting if we haven't moved yet
-            if (data.data.length > 0 && !map._moved) {
-                map.setView([data.data[0].latitude, data.data[0].longitude], 13);
+            // Automatically fit map to show all markers
+            if (bounds.length > 0) {
+                if (bounds.length === 1) {
+                    // Single marker - center on it
+                    map.setView(bounds[0], 13);
+                } else {
+                    // Multiple markers - fit bounds to show all
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
             }
         }
     } catch (error) {
