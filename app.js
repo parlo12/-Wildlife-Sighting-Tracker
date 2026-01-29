@@ -108,6 +108,13 @@ async function loadSightings() {
 function addSightingMarker(sighting) {
     const species = sighting.species || 'Unknown';
     
+    // Add slight random offset to prevent markers from stacking at exact same location
+    // This helps when multiple users report from the same area
+    const offsetLat = (Math.random() - 0.5) * 0.0005; // ~50 meters offset
+    const offsetLon = (Math.random() - 0.5) * 0.0005;
+    const displayLat = parseFloat(sighting.latitude) + offsetLat;
+    const displayLon = parseFloat(sighting.longitude) + offsetLon;
+    
     // Create custom icon with species label
     const customIcon = L.divIcon({
         className: 'custom-marker',
@@ -139,7 +146,7 @@ function addSightingMarker(sighting) {
         iconAnchor: [100, 30]
     });
     
-    const marker = L.marker([sighting.latitude, sighting.longitude], {
+    const marker = L.marker([displayLat, displayLon], {
         icon: customIcon
     }).addTo(map);
     
