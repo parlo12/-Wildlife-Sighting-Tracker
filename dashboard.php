@@ -1,8 +1,11 @@
 <?php
 session_start();
 
-// Password protection
-$DASHBOARD_PASSWORD = '1804noula';
+// Load config for password
+$config = require __DIR__ . '/config.php';
+
+// Password protection - from environment variable
+$DASHBOARD_PASSWORD = $config['dashboard_password'];
 
 // Check if logging out
 if (isset($_GET['logout'])) {
