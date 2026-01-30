@@ -25,6 +25,7 @@ $FCM_KEY = $config['fcm']['server_key'];
 $FCM_TITLE = $config['fcm']['notification_title'];
 $FCM_BODY = $config['fcm']['notification_body'];
 $FCM_V1 = $config['fcm_v1'];
+$VAPID = $config['vapid'];
 
 function applyCors(array $corsConfig): void
 {
@@ -306,6 +307,276 @@ function sendFcmLegacy(array $tokens, float $lat, float $lon, string $serverKey,
     return $summary;
 }
 
+function sendWebPushNotifications(PDO $pdo, string $title, string $body, array $vapid): array
+{
+    $result = [
+        'requested' => 0,
+        'success' => 0,
+        'failure' => 0,
+    ];
+
+    // Get all push subscriptions
+    $stmt = $pdo->query('SELECT endpoint, p256dh_key, auth_key FROM push_subscriptions');
+    $subscriptions = $stmt->fetchAll();
+    $result['requested'] = count($subscriptions);
+
+    if (empty($subscriptions)) {
+        return $result;
+    }
+
+    $payload = json_encode([
+        'title' => $title,
+        'body' => $body,
+        'url' => '/'
+    ]);
+
+    foreach ($subscriptions as $sub) {
+        try {
+            $sent = sendSingleWebPush(
+                $sub['endpoint'],
+                $sub['p256dh_key'],
+                $sub['auth_key'],
+                $payload,
+                $vapid
+            );
+            if ($sent) {
+                $result['success']++;
+            } else {
+                $result['failure']++;
+            }
+        } catch (Throwable $e) {
+            $result['failure']++;
+        }
+    }
+
+    return $result;
+}
+
+function sendSingleWebPush(string $endpoint, string $p256dh, string $auth, string $payload, array $vapid): bool
+{
+    // Decode subscriber keys
+    $userPublicKey = base64_decode($p256dh);
+    $userAuth = base64_decode($auth);
+
+    if (!$userPublicKey || !$userAuth) {
+        return false;
+    }
+
+    // Generate local ECDH key pair
+    $localKey = openssl_pkey_new([
+        'curve_name' => 'prime256v1',
+        'private_key_type' => OPENSSL_KEYTYPE_EC
+    ]);
+    if (!$localKey) {
+        return false;
+    }
+
+    $localKeyDetails = openssl_pkey_get_details($localKey);
+    $localPublicKey = chr(4) . $localKeyDetails['ec']['x'] . $localKeyDetails['ec']['y'];
+
+    // Derive shared secret using ECDH
+    // Create public key resource from user's key
+    $userKeyPem = createEcPublicKeyPem($userPublicKey);
+    if (!$userKeyPem) {
+        return false;
+    }
+
+    $sharedSecret = '';
+    $userKeyResource = openssl_pkey_get_public($userKeyPem);
+    if (!$userKeyResource) {
+        return false;
+    }
+
+    // Use openssl_pkey_derive for ECDH (PHP 7.3+)
+    if (function_exists('openssl_pkey_derive')) {
+        $sharedSecret = openssl_pkey_derive($userKeyResource, $localKey);
+    } else {
+        // Fallback - just skip encryption and send unencrypted (won't work for most browsers)
+        return false;
+    }
+
+    if (!$sharedSecret) {
+        return false;
+    }
+
+    // HKDF for encryption keys
+    $salt = random_bytes(16);
+    $context = createContext($userPublicKey, $localPublicKey);
+
+    $prk = hash_hmac('sha256', $sharedSecret, $userAuth, true);
+    $cek_info = createInfo('aesgcm', $context);
+    $cek = hkdfExpand($prk, $cek_info, 16);
+
+    $nonce_info = createInfo('nonce', $context);
+    $nonce = hkdfExpand($prk, $nonce_info, 12);
+
+    // Pad payload
+    $padding = chr(0) . chr(0);
+    $paddedPayload = $padding . $payload;
+
+    // Encrypt with AES-GCM
+    $encrypted = openssl_encrypt(
+        $paddedPayload,
+        'aes-128-gcm',
+        $cek,
+        OPENSSL_RAW_DATA,
+        $nonce,
+        $tag
+    );
+
+    if ($encrypted === false) {
+        return false;
+    }
+
+    $body = $salt . pack('n', 4096) . chr(strlen($localPublicKey)) . $localPublicKey . $encrypted . $tag;
+
+    // Create VAPID JWT
+    $jwt = createVapidJwt($endpoint, $vapid);
+    if (!$jwt) {
+        return false;
+    }
+
+    // Send the request
+    $headers = [
+        'Content-Type: application/octet-stream',
+        'Content-Encoding: aesgcm',
+        'Content-Length: ' . strlen($body),
+        'TTL: 86400',
+        'Authorization: WebPush ' . $jwt,
+        'Crypto-Key: dh=' . rtrim(strtr(base64_encode($localPublicKey), '+/', '-_'), '=') . ';p256ecdsa=' . $vapid['public_key'],
+        'Encryption: salt=' . rtrim(strtr(base64_encode($salt), '+/', '-_'), '='),
+    ];
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    return $httpCode >= 200 && $httpCode < 300;
+}
+
+function createEcPublicKeyPem(string $publicKey): ?string
+{
+    if (strlen($publicKey) !== 65 || $publicKey[0] !== chr(4)) {
+        return null;
+    }
+
+    // DER encoding for EC public key
+    $der = hex2bin('3059301306072a8648ce3d020106082a8648ce3d030107034200') . $publicKey;
+    return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($der), 64) . "-----END PUBLIC KEY-----\n";
+}
+
+function createContext(string $userPublicKey, string $localPublicKey): string
+{
+    return "P-256\0" .
+        pack('n', strlen($userPublicKey)) . $userPublicKey .
+        pack('n', strlen($localPublicKey)) . $localPublicKey;
+}
+
+function createInfo(string $type, string $context): string
+{
+    return "Content-Encoding: " . $type . chr(0) . $context;
+}
+
+function hkdfExpand(string $prk, string $info, int $length): string
+{
+    $t = '';
+    $lastBlock = '';
+    $counter = 1;
+
+    while (strlen($t) < $length) {
+        $lastBlock = hash_hmac('sha256', $lastBlock . $info . chr($counter), $prk, true);
+        $t .= $lastBlock;
+        $counter++;
+    }
+
+    return substr($t, 0, $length);
+}
+
+function createVapidJwt(string $endpoint, array $vapid): ?string
+{
+    $parsedUrl = parse_url($endpoint);
+    $audience = $parsedUrl['scheme'] . '://' . $parsedUrl['host'];
+
+    $header = ['typ' => 'JWT', 'alg' => 'ES256'];
+    $payload = [
+        'aud' => $audience,
+        'exp' => time() + 43200,
+        'sub' => $vapid['subject'],
+    ];
+
+    $headerB64 = rtrim(strtr(base64_encode(json_encode($header)), '+/', '-_'), '=');
+    $payloadB64 = rtrim(strtr(base64_encode(json_encode($payload)), '+/', '-_'), '=');
+    $data = $headerB64 . '.' . $payloadB64;
+
+    // Decode private key
+    $privateKeyRaw = base64_decode(strtr($vapid['private_key'] . str_repeat('=', (4 - strlen($vapid['private_key']) % 4) % 4), '-_', '+/'));
+
+    // Create PEM from raw private key
+    // Build DER structure for EC private key
+    $der = hex2bin('30770201010420') . $privateKeyRaw .
+           hex2bin('a00a06082a8648ce3d030107a144034200') .
+           base64_decode(strtr($vapid['public_key'] . str_repeat('=', (4 - strlen($vapid['public_key']) % 4) % 4), '-_', '+/'));
+
+    $pem = "-----BEGIN EC PRIVATE KEY-----\n" . chunk_split(base64_encode($der), 64) . "-----END EC PRIVATE KEY-----\n";
+
+    $key = openssl_pkey_get_private($pem);
+    if (!$key) {
+        return null;
+    }
+
+    $signature = '';
+    if (!openssl_sign($data, $signature, $key, OPENSSL_ALGO_SHA256)) {
+        return null;
+    }
+
+    // Convert DER signature to raw format (r + s, each 32 bytes)
+    $sigRaw = derToRaw($signature);
+    if (!$sigRaw) {
+        return null;
+    }
+
+    $signatureB64 = rtrim(strtr(base64_encode($sigRaw), '+/', '-_'), '=');
+    return $data . '.' . $signatureB64;
+}
+
+function derToRaw(string $der): ?string
+{
+    // Parse DER signature and extract r and s values
+    $pos = 0;
+    if (ord($der[$pos++]) !== 0x30) return null;
+
+    $length = ord($der[$pos++]);
+    if ($length & 0x80) {
+        $pos += ($length & 0x7f);
+    }
+
+    // R
+    if (ord($der[$pos++]) !== 0x02) return null;
+    $rLen = ord($der[$pos++]);
+    $r = substr($der, $pos, $rLen);
+    $pos += $rLen;
+
+    // S
+    if (ord($der[$pos++]) !== 0x02) return null;
+    $sLen = ord($der[$pos++]);
+    $s = substr($der, $pos, $sLen);
+
+    // Pad or trim to 32 bytes each
+    $r = str_pad(ltrim($r, "\x00"), 32, "\x00", STR_PAD_LEFT);
+    $s = str_pad(ltrim($s, "\x00"), 32, "\x00", STR_PAD_LEFT);
+
+    return substr($r, -32) . substr($s, -32);
+}
+
 function logEvent(string $level, string $message, array $context = []): void
 {
     $logFile = $GLOBALS['LOG_FILE'] ?? (__DIR__ . '/logs/access.log');
@@ -437,6 +708,17 @@ try {
         }
     }
 
+    // Send web push notifications
+    $webPushResult = null;
+    if (!empty($VAPID['public_key']) && !empty($VAPID['private_key'])) {
+        $webPushResult = sendWebPushNotifications(
+            $pdo,
+            'Nouvo Glas Poste!',
+            "Yon moun te poste $species nan zòn ou!",
+            $VAPID
+        );
+    }
+
     logEvent('info', 'sighting_created', [
         'sighting_id' => $sightingId,
         'lat' => $lat,
@@ -446,6 +728,8 @@ try {
         'fcm_used' => $fcmResult['used'] ?? null,
         'fcm_success' => $fcmResult['success'] ?? null,
         'fcm_failure' => $fcmResult['failure'] ?? null,
+        'webpush_requested' => $webPushResult['requested'] ?? 0,
+        'webpush_success' => $webPushResult['success'] ?? 0,
     ]);
 
     respond(200, [
@@ -455,6 +739,7 @@ try {
         'species' => $species,
         'fcm_tokens' => $tokens,
         'fcm' => $fcmResult,
+        'webpush' => $webPushResult,
     ]);
 } catch (Throwable $e) {
     logEvent('error', 'exception', ['error' => $e->getMessage()]);

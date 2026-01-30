@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glas-tracker-v1';
+const CACHE_NAME = 'glas-tracker-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -128,7 +128,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Glas Tracker', options)
+    self.registration.showNotification(data.title || 'Kote Glas Ye', options)
   );
 });
 
