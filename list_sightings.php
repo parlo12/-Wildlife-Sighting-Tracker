@@ -87,9 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 500;
 $limit = max(1, min($limit, 1000)); // avoid unbounded queries
 
-// 1 mile = 1609.34 meters
-$PROXIMITY_RADIUS_METERS = 1609.34;
-
 try {
     $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s', $DB_HOST, $DB_PORT, $DB_NAME);
     $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
@@ -97,25 +94,16 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 
-    // Select sightings, but exclude older sightings if a newer one exists within 1 mile.
-    // This ensures only the most recent sighting in each 1-mile cluster is shown.
+    // Return ALL active sightings from all users
     $stmt = $pdo->prepare(
-        'SELECT s1.id, s1.species, s1.user_id, s1.created_at, s1.expires_at, s1.last_confirmed_at, ' .
-        'ST_Y(s1.location::geometry) AS latitude, ' .
-        'ST_X(s1.location::geometry) AS longitude ' .
-        'FROM sightings s1 ' .
-        'WHERE (s1.expires_at IS NULL OR s1.expires_at > NOW()) ' .
-        'AND NOT EXISTS ( ' .
-        '    SELECT 1 FROM sightings s2 ' .
-        '    WHERE s2.id != s1.id ' .
-        '    AND (s2.expires_at IS NULL OR s2.expires_at > NOW()) ' .
-        '    AND s2.created_at > s1.created_at ' .
-        '    AND ST_DWithin(s1.location::geography, s2.location::geography, :radius) ' .
-        ') ' .
-        'ORDER BY s1.created_at DESC ' .
+        'SELECT id, species, user_id, created_at, expires_at, last_confirmed_at, ' .
+        'ST_Y(location::geometry) AS latitude, ' .
+        'ST_X(location::geometry) AS longitude ' .
+        'FROM sightings ' .
+        'WHERE (expires_at IS NULL OR expires_at > NOW()) ' .
+        'ORDER BY created_at DESC ' .
         'LIMIT :limit'
     );
-    $stmt->bindValue(':radius', $PROXIMITY_RADIUS_METERS, PDO::PARAM_STR);
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
     $data = $stmt->fetchAll();
