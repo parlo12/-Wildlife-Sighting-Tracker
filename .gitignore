@@ -8,5 +8,8 @@
 uploads/*
 !uploads/.gitkeep
 
+# Log files (keep directory but not logs)
+logs/*.log
+
 # Local dashboard (not for production)
 dashboard.html

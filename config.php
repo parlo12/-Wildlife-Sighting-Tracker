@@ -88,8 +88,9 @@ return [
         'token_uri' => getenv('FCM_TOKEN_URI') ?: 'https://oauth2.googleapis.com/token',
     ],
     'vapid' => [
-        'public_key' => getenv('VAPID_PUBLIC_KEY') ?: 'BOuypGn5hkWyyCVpEO7f5yKxkg-fi-6Fum1YARnCCzpN5fohYzjSsrEDoL_W44qGsSMLfrvuBj5u6M754FYzdaQ',
-        'private_key' => getenv('VAPID_PRIVATE_KEY') ?: '9eR89H2pQrixCP2Ydfk8zmFLNKDgqWWYgU4_gfjMXFI',
+        'public_key' => getenv('VAPID_PUBLIC_KEY') ?: '',
+        'private_key' => getenv('VAPID_PRIVATE_KEY') ?: '',
         'subject' => getenv('VAPID_SUBJECT') ?: 'mailto:admin@koteglasye.com',
     ],
+    'dashboard_password' => getenv('DASHBOARD_PASSWORD') ?: '',
 ];
