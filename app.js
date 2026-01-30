@@ -182,7 +182,7 @@ function addSightingMarker(sighting) {
             </div>
             <div class="popup-info" style="text-align: left;">
                 <div class="popup-time">${createdAt.toLocaleString()}</div>
-                <div>📍 ${sighting.latitude.toFixed(6)}, ${sighting.longitude.toFixed(6)}</div>
+                <div>📍 ${parseFloat(sighting.latitude).toFixed(6)}, ${parseFloat(sighting.longitude).toFixed(6)}</div>
                 ${expiresText}
             </div>
         </div>
