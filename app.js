@@ -16,7 +16,7 @@ function getUserId() {
     if (!userId) {
         // Check if user ID exists in localStorage
         userId = localStorage.getItem('wildlife_user_id');
-        
+
         if (!userId) {
             // Generate new unique user ID
             userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -27,6 +27,62 @@ function getUserId() {
         }
     }
     return userId;
+}
+
+// Generate or retrieve visitor ID (for analytics)
+function getVisitorId() {
+    let visitorId = localStorage.getItem('glas_visitor_id');
+    if (!visitorId) {
+        visitorId = 'v_' + Date.now() + '_' + Math.random().toString(36).substr(2, 12);
+        localStorage.setItem('glas_visitor_id', visitorId);
+    }
+    return visitorId;
+}
+
+// Generate session ID (new each browser session)
+function getSessionId() {
+    let sessionId = sessionStorage.getItem('glas_session_id');
+    if (!sessionId) {
+        sessionId = 's_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        sessionStorage.setItem('glas_session_id', sessionId);
+    }
+    return sessionId;
+}
+
+// Track visitor
+async function trackVisit() {
+    try {
+        const visitorId = getVisitorId();
+        const sessionId = getSessionId();
+
+        // Detect if mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        const visitData = {
+            visitor_id: visitorId,
+            session_id: sessionId,
+            screen_width: window.screen.width,
+            screen_height: window.screen.height,
+            language: navigator.language || navigator.userLanguage,
+            platform: navigator.platform,
+            referrer: document.referrer,
+            is_mobile: isMobile,
+            page_url: window.location.pathname
+        };
+
+        await fetch(`${API_BASE_URL}/track_visit.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(visitData)
+        });
+
+        console.log('Visit tracked:', visitorId);
+    } catch (error) {
+        // Silent fail - don't disrupt user experience
+        console.log('Visit tracking skipped');
+    }
 }
 
 // Initialize map
@@ -342,6 +398,7 @@ function closeConfirmationModal() {
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
     loadSightings();
+    trackVisit(); // Track visitor analytics
 
     // Start expiration checking
     expirationCheckInterval = setInterval(checkExpirations, CHECK_EXPIRATION_INTERVAL);
