@@ -7,3 +7,6 @@
 # Uploads (keep directory but not files)
 uploads/*
 !uploads/.gitkeep
+
+# Local dashboard (not for production)
+dashboard.html
