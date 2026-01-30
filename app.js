@@ -2,6 +2,7 @@
 const API_BASE_URL = window.location.origin;
 const CHECK_EXPIRATION_INTERVAL = 60000; // Check every 1 minute
 const EXPIRATION_WARNING_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
+const VAPID_PUBLIC_KEY = 'BOuypGn5hkWyyCVpEO7f5yKxkg-fi-6Fum1YARnCCzpN5fohYzjSsrEDoL_W44qGsSMLfrvuBj5u6M754FYzdaQ';
 
 // Global state
 let map;
@@ -83,6 +84,137 @@ async function trackVisit() {
         // Silent fail - don't disrupt user experience
         console.log('Visit tracking skipped');
     }
+}
+
+// Convert base64 to Uint8Array for VAPID key
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// Check if push notifications are supported and not yet asked
+function canAskForNotificationPermission() {
+    return 'Notification' in window &&
+           'serviceWorker' in navigator &&
+           'PushManager' in window &&
+           Notification.permission === 'default' &&
+           !localStorage.getItem('push_notification_asked');
+}
+
+// Subscribe to push notifications
+async function subscribeToPushNotifications() {
+    try {
+        const registration = await navigator.serviceWorker.ready;
+
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        // Send subscription to server
+        const response = await fetch(`${API_BASE_URL}/subscribe_push.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                endpoint: subscription.endpoint,
+                p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
+                auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
+            })
+        });
+
+        const data = await response.json();
+        console.log('Push subscription saved:', data);
+        return true;
+    } catch (error) {
+        console.error('Error subscribing to push:', error);
+        return false;
+    }
+}
+
+// Show notification permission prompt
+function showNotificationPrompt() {
+    if (!canAskForNotificationPermission()) {
+        return;
+    }
+
+    // Create the prompt UI
+    const prompt = document.createElement('div');
+    prompt.id = 'notificationPrompt';
+    prompt.innerHTML = `
+        <div style="
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 90%;
+            width: 400px;
+            text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+            <div style="font-size: 24px; margin-bottom: 10px;">🔔</div>
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Resevwa notifikasyon</div>
+            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 15px;">
+                Aksepte pou resevwa notifikasyon lè nouvo glas yo poste nan zòn ou!
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="allowNotifications" style="
+                    background: white;
+                    color: #667eea;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Aksepte</button>
+                <button id="denyNotifications" style="
+                    background: rgba(255,255,255,0.2);
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Non Mèsi</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(prompt);
+
+    // Handle allow button
+    document.getElementById('allowNotifications').addEventListener('click', async () => {
+        localStorage.setItem('push_notification_asked', 'true');
+        prompt.remove();
+
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            await subscribeToPushNotifications();
+        }
+    });
+
+    // Handle deny button
+    document.getElementById('denyNotifications').addEventListener('click', () => {
+        localStorage.setItem('push_notification_asked', 'true');
+        prompt.remove();
+    });
 }
 
 // Initialize map
@@ -399,6 +531,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initMap();
     loadSightings();
     trackVisit(); // Track visitor analytics
+
+    // Show notification prompt after a short delay (3 seconds)
+    setTimeout(showNotificationPrompt, 3000);
 
     // Start expiration checking
     expirationCheckInterval = setInterval(checkExpirations, CHECK_EXPIRATION_INTERVAL);
