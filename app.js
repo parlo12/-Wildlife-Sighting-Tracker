@@ -4,6 +4,95 @@ const CHECK_EXPIRATION_INTERVAL = 60000; // Check every 1 minute
 const EXPIRATION_WARNING_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 const VAPID_PUBLIC_KEY = 'BOuypGn5hkWyyCVpEO7f5yKxkg-fi-6Fum1YARnCCzpN5fohYzjSsrEDoL_W44qGsSMLfrvuBj5u6M754FYzdaQ';
 
+// Translations
+const translations = {
+    ht: {
+        reportBtn: '➕ Ripòte Glas',
+        refreshBtn: '🔄 Rafrechi Kat',
+        modalHeader: 'Ripòte locasyon glas',
+        speciesLabel: 'Kisa ou te wè? *',
+        speciesPlaceholder: 'ekri sa ou we a egzamp eske ou we glas nan zon nan',
+        useLocationBtn: '📍 Sèvi ak lokasyon ou',
+        cancelBtn: 'Anile',
+        uploadBtn: 'Voye',
+        uploading: 'Ap voye...',
+        uploadSuccess: '✓ Voye avèk siksè! Rapò ajoute sou kat la.',
+        uploadFailed: 'Voye echwe. Tanpri eseye ankò.',
+        networkError: 'Erè rezo. Tanpri tcheke koneksyon ou.',
+        locationError: 'Pa kapab jwenn lokasyon ou. Tanpri aktive sèvis lokasyon.',
+        geoNotSupported: 'Navigatè ou a pa sipòte jeolokalizasyon.',
+        gettingLocation: '📍 Ap chèche lokasyon...',
+        locationAcquired: '✓ Lokasyon jwenn:',
+        yourLocation: '📍 Lokasyon ou',
+        expiringTitle: '⏰ Rapò ap ekspire byento',
+        expiringMessage: 'Èske rapò sa a toujou nan zòn nan?',
+        expiresIn: 'Ap ekspire nan anviwon',
+        minutes: 'minit',
+        confirmYes: 'Wi, Kenbe Li',
+        confirmNo: 'Non, Retire Li',
+        expiresInPopup: '⏰ Ekspire nan',
+        notifTitle: 'Resevwa notifikasyon',
+        notifBody: 'Aksepte pou resevwa notifikasyon lè nouvo glas yo poste nan zòn ou!',
+        notifAccept: 'Aksepte',
+        notifDeny: 'Non Mèsi',
+    },
+    es: {
+        reportBtn: '➕ Reportar Vidrio',
+        refreshBtn: '🔄 Actualizar Mapa',
+        modalHeader: 'Reportar ubicación de vidrio',
+        speciesLabel: '¿Qué viste? *',
+        speciesPlaceholder: 'Escribe lo que viste, por ejemplo si viste vidrio en la zona',
+        useLocationBtn: '📍 Usar mi ubicación',
+        cancelBtn: 'Cancelar',
+        uploadBtn: 'Enviar',
+        uploading: 'Enviando...',
+        uploadSuccess: '✓ ¡Enviado con éxito! Reporte agregado al mapa.',
+        uploadFailed: 'Error al enviar. Por favor intenta de nuevo.',
+        networkError: 'Error de red. Por favor verifica tu conexión.',
+        locationError: 'No se pudo obtener la ubicación. Activa los servicios de ubicación.',
+        geoNotSupported: 'Tu navegador no soporta geolocalización.',
+        gettingLocation: '📍 Obteniendo ubicación...',
+        locationAcquired: '✓ Ubicación obtenida:',
+        yourLocation: '📍 Tu ubicación',
+        expiringTitle: '⏰ Reporte por expirar',
+        expiringMessage: '¿Este reporte sigue en el área?',
+        expiresIn: 'Expira en aproximadamente',
+        minutes: 'minutos',
+        confirmYes: 'Sí, Mantener',
+        confirmNo: 'No, Eliminar',
+        expiresInPopup: '⏰ Expira en',
+        notifTitle: 'Recibir notificaciones',
+        notifBody: '¡Acepta para recibir notificaciones cuando se reporten nuevos vidrios en tu zona!',
+        notifAccept: 'Aceptar',
+        notifDeny: 'No Gracias',
+    }
+};
+
+let currentLang = localStorage.getItem('glas_language') || 'ht';
+
+function t(key) {
+    return (translations[currentLang] && translations[currentLang][key]) || translations.ht[key] || key;
+}
+
+function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('glas_language', lang);
+
+    // Update static HTML elements with data-i18n
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+
+    // Update the language toggle button
+    const langBtn = document.getElementById('langBtn');
+    if (langBtn) {
+        langBtn.textContent = '🌐 ' + lang.toUpperCase();
+    }
+}
+
 // Global state
 let map;
 let markers = {};
@@ -168,9 +257,9 @@ function showNotificationPrompt() {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         ">
             <div style="font-size: 24px; margin-bottom: 10px;">🔔</div>
-            <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Resevwa notifikasyon</div>
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">${t('notifTitle')}</div>
             <div style="font-size: 14px; opacity: 0.9; margin-bottom: 15px;">
-                Aksepte pou resevwa notifikasyon lè nouvo glas yo poste nan zòn ou!
+                ${t('notifBody')}
             </div>
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button id="allowNotifications" style="
@@ -182,7 +271,7 @@ function showNotificationPrompt() {
                     font-weight: 600;
                     cursor: pointer;
                     font-size: 14px;
-                ">Aksepte</button>
+                ">${t('notifAccept')}</button>
                 <button id="denyNotifications" style="
                     background: rgba(255,255,255,0.2);
                     color: white;
@@ -192,7 +281,7 @@ function showNotificationPrompt() {
                     font-weight: 600;
                     cursor: pointer;
                     font-size: 14px;
-                ">Non Mèsi</button>
+                ">${t('notifDeny')}</button>
             </div>
         </div>
     `;
@@ -247,7 +336,7 @@ function initMap() {
                         iconAnchor: [12, 41],
                         popupAnchor: [1, -34]
                     })
-                }).addTo(map).bindPopup('📍 Your Location').openPopup();
+                }).addTo(map).bindPopup(t('yourLocation')).openPopup();
                 
                 console.log('User location:', userLat, userLon);
             },
@@ -356,7 +445,7 @@ function addSightingMarker(sighting) {
         const minutesRemaining = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
         
         if (msRemaining > 0) {
-            expiresText = `<div class="popup-expires">⏰ Expires in ${hoursRemaining}h ${minutesRemaining}m</div>`;
+            expiresText = `<div class="popup-expires">${t('expiresInPopup')} ${hoursRemaining}h ${minutesRemaining}m</div>`;
         }
     }
     
@@ -434,7 +523,7 @@ function showConfirmationDialog(sighting) {
     const now = new Date();
     const minutesRemaining = Math.floor((expiresAt - now) / (1000 * 60));
     
-    details.innerHTML = `Expires in approximately ${minutesRemaining} minutes`;
+    details.innerHTML = `${t('expiresIn')} ${minutesRemaining} ${t('minutes')}`;
     modal.style.display = 'block';
 }
 
@@ -487,18 +576,18 @@ async function uploadSighting(species, location) {
         const data = await response.json();
 
         if (response.ok && data.sighting_id) {
-            successEl.textContent = '✓ Upload successful! Sighting added to map.';
+            successEl.textContent = t('uploadSuccess');
             setTimeout(() => {
                 closeUploadModal();
                 loadSightings();
             }, 1500);
         } else {
-            errorEl.textContent = data.error || 'Upload failed. Please try again.';
+            errorEl.textContent = data.error || t('uploadFailed');
             submitBtn.disabled = false;
         }
     } catch (error) {
         console.error('Upload error:', error);
-        errorEl.textContent = 'Network error. Please check your connection.';
+        errorEl.textContent = t('networkError');
         submitBtn.disabled = false;
     } finally {
         loadingEl.classList.remove('active');
@@ -528,6 +617,7 @@ function closeConfirmationModal() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
+    setLanguage(currentLang); // Apply saved language preference
     initMap();
     loadSightings();
     trackVisit(); // Track visitor analytics
@@ -568,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const errorEl = document.getElementById('uploadError');
         
         if (navigator.geolocation) {
-            locationInfo.textContent = '📍 Getting location...';
+            locationInfo.textContent = t('gettingLocation');
             locationInfo.style.display = 'block';
             locationInfo.style.color = '#666';
             errorEl.textContent = '';
@@ -579,13 +669,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         lat: position.coords.latitude,
                         lon: position.coords.longitude
                     };
-                    locationInfo.textContent = `✓ Location acquired: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lon.toFixed(6)}`;
+                    locationInfo.textContent = `${t('locationAcquired')} ${currentLocation.lat.toFixed(6)}, ${currentLocation.lon.toFixed(6)}`;
                     locationInfo.style.color = '#28a745';
                     validateForm();
                 },
                 (error) => {
                     locationInfo.style.display = 'none';
-                    errorEl.textContent = 'Unable to get location. Please enable location services.';
+                    errorEl.textContent = t('locationError');
                     currentLocation = null;
                     validateForm();
                 },
@@ -596,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             );
         } else {
-            errorEl.textContent = 'Geolocation is not supported by your browser.';
+            errorEl.textContent = t('geoNotSupported');
         }
     });
 

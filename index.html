@@ -333,34 +333,35 @@
     <div id="map"></div>
 
     <div class="controls">
-        <button id="uploadBtn" class="btn btn-primary">➕ Ripòte Glas</button>
-        <button id="refreshBtn" class="btn">🔄 Refresh Map</button>
+        <button id="uploadBtn" class="btn btn-primary" data-i18n="reportBtn">➕ Ripòte Glas</button>
+        <button id="refreshBtn" class="btn" data-i18n="refreshBtn">🔄 Rafrechi Kat</button>
+        <button id="langBtn" class="btn" onclick="setLanguage(currentLang === 'ht' ? 'es' : 'ht')">🌐 HT</button>
     </div>
 
     <!-- Report Sighting Modal -->
     <div id="uploadModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <div class="modal-header">Ripòte locasyon glas</div>
+            <div class="modal-header" data-i18n="modalHeader">Ripòte locasyon glas</div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="speciesInput">What did you see? *</label>
-                    <input type="text" id="speciesInput" placeholder="ekri sa ou we a egzamp eske ou we glas nan zon nan" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;">
+                    <label for="speciesInput" data-i18n="speciesLabel">Kisa ou te wè? *</label>
+                    <input type="text" id="speciesInput" data-i18n-placeholder="speciesPlaceholder" placeholder="ekri sa ou we a egzamp eske ou we glas nan zon nan" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;">
                 </div>
                 <div class="form-group">
-                    <button id="useLocationBtn" class="btn" style="width: 100%; padding: 15px; font-size: 16px;">📍 Use Current Location</button>
+                    <button id="useLocationBtn" class="btn" style="width: 100%; padding: 15px; font-size: 16px;" data-i18n="useLocationBtn">📍 Sèvi ak lokasyon ou</button>
                     <p id="locationInfo" class="info-text" style="display: none; color: #28a745; font-weight: 600; margin-top: 10px;"></p>
                 </div>
                 <div id="uploadError" class="error-message"></div>
                 <div id="uploadSuccess" class="success-message"></div>
                 <div id="uploadLoading" class="loading">
                     <div class="spinner"></div>
-                    <p style="margin-top: 10px;">Uploading...</p>
+                    <p style="margin-top: 10px;" data-i18n="uploading">Ap voye...</p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="cancelUpload" class="btn">Cancel</button>
-                <button id="submitUpload" class="btn btn-primary" disabled>Upload</button>
+                <button id="cancelUpload" class="btn" data-i18n="cancelBtn">Anile</button>
+                <button id="submitUpload" class="btn btn-primary" disabled data-i18n="uploadBtn">Voye</button>
             </div>
         </div>
     </div>
@@ -368,12 +369,12 @@
     <!-- Confirmation Modal -->
     <div id="confirmationModal" class="confirmation-modal">
         <div class="confirmation-content">
-            <h2>⏰ Sighting Expiring Soon</h2>
-            <p>Is this sighting still in the area?</p>
+            <h2 data-i18n="expiringTitle">⏰ Rapò ap ekspire byento</h2>
+            <p data-i18n="expiringMessage">Èske rapò sa a toujou nan zòn nan?</p>
             <div id="confirmationDetails" style="margin-bottom: 20px; color: #888; font-size: 12px;"></div>
             <div class="confirmation-buttons">
-                <button id="confirmYes" class="btn btn-success">Yes, Keep It</button>
-                <button id="confirmNo" class="btn btn-danger">No, Remove It</button>
+                <button id="confirmYes" class="btn btn-success" data-i18n="confirmYes">Wi, Kenbe Li</button>
+                <button id="confirmNo" class="btn btn-danger" data-i18n="confirmNo">Non, Retire Li</button>
             </div>
         </div>
     </div>
